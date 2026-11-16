@@ -1,0 +1,22 @@
+digraph G {
+  rankdir=LR; graph [fontname="DejaVu Sans", fontsize=10, nodesep=0.35, ranksep=0.55, pad=0.2];
+  node [fontname="DejaVu Sans", fontsize=9, shape=box, style="rounded,filled", fillcolor="#f3f2ee", color="#9a9a92", penwidth=1.2];
+  edge [fontname="DejaVu Sans", fontsize=8, color="#5f5e5a"];
+  hmi [label="1. Пульт оператора (HMI)\n+ кнопка аварийной остановки"];
+  subgraph cluster_node { label="Узел диспетчерской (сейчас один сервер)"; style="rounded,dashed"; color="#d03b3b"; fontcolor="#d03b3b"; fontsize=9;
+    a [label="2. Диспетчерская (A)\nFMS + сервис аварийных команд\nMTBF 1720 ч / MTTR 4 ч", fillcolor="#fbe3e3", color="#d03b3b"];
+    rep [label="4. Сервис отчётности\nи аналитики", fillcolor="#fbe3e3", color="#d03b3b"];
+  }
+  b [label="3. БД техники (B)\nMTBF 4100 ч / MTTR 1 ч", fillcolor="#fbe3e3", color="#d03b3b"];
+  c [label="5. Радиосеть карьера (C)\nчастная LTE, SLA 0,999", fillcolor="#fbe3e3", color="#d03b3b"];
+  truck [label="6. Бортовой контроллер\nсамосвала ×12\n(watchdog: нет heartbeat 2 с → стоп)"];
+  rtk [label="7. Базовая станция RTK\n(GNSS-поправки)", fillcolor="#fbe3e3", color="#d03b3b"];
+  erp [label="8. Корпоративная сеть / ERP\n(потребитель отчётов)"];
+  hmi -> a [label="E-stop, команды"];
+  a -> b [label="состояние парка"];
+  rep -> b [label="тяжёлые запросы"];
+  a -> c [label="команды, heartbeat"];
+  c -> truck [dir=both, label="телеметрия"];
+  rtk -> truck [label="поправки", style=dashed];
+  rep -> erp [label="отчёты"];
+}

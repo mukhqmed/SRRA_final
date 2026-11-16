@@ -1,0 +1,10 @@
+0 с: нагрузка пошла
+{"delay_ms": 3000, "error_rate": 0.0, "down": false} <- 30 с: отказ включён
+{"delay_ms": 0, "error_rate": 0, "down": false} <- 60 с: отказ снят
+core /metrics (сумма по репликам):
+  bulkhead_total{kind="emergency",result="backup"} 60
+  bulkhead_total{kind="emergency",result="primary"} 180
+  bulkhead_total{kind="normal",result="deferred"} 540
+  bulkhead_total{kind="normal",result="ok"} 1620
+  requests_total{code="200"} 2400
+POFOD=0.0000 ROCOF=0.0/ч AVAIL=1.0000 p50/p95/p99=3/803/803 мс (запросов 2400, неудачных 0, эпизодов 0, 120 с)
