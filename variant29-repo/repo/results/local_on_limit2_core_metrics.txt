@@ -1,7 +1,0 @@
-bulkhead_total{kind="emergency",result="backup"} 60
-bulkhead_total{kind="emergency",result="primary"} 180
-bulkhead_total{kind="normal",result="deferred"} 240
-bulkhead_total{kind="normal",result="ok"} 1620
-bulkhead_total{kind="normal",result="rejected"} 300
-requests_total{code="200"} 2100
-requests_total{code="500"} 300

@@ -1,1 +1,0 @@
-requests_total{code="200"} 2400
