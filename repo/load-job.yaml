@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata: {name: load}
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector: {node-role.kubernetes.io/control-plane: ""}   # нагрузка — на отдельном узле
+      tolerations: [{operator: Exists}]
+      containers:
+      - name: load
+        image: python:3.12-alpine
+        command: ["python", "/code/loadgen.py", "--url", "http://app-svc/work",
+                  "--rps", "20", "--duration", "120", "--timeout", "1.5"]
+        volumeMounts: [{name: code, mountPath: /code}]
+      volumes: [{name: code, configMap: {name: code}}]

@@ -1,0 +1,97 @@
+# План развёртывания для реальной системы (задание 7). В стенде Killercoda не применяется:
+# стенд — stand.yaml (R = 4, readiness/liveness по /health). Здесь — целевая конфигурация.
+#
+# Bulkhead на уровне платформы: аварийный сервис и отчётность — разные Deployment,
+# разные узлы, разные PriorityClass и лимиты памяти. Нехватка памяти из-за отчётов
+# (главный сценарий FAIR) не может вытеснить сервис аварийных команд.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: {name: safety-critical}
+value: 1000000
+preemptionPolicy: PreemptLowerPriority
+description: "Аварийные команды: вытесняют всё остальное"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: {name: best-effort-reports}
+value: 1000
+preemptionPolicy: Never
+description: "Отчётность: первой уходит при нехватке ресурсов"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: estop, labels: {app: estop}}
+spec:
+  replicas: 4                                   # R = 4: 2 на каждый узел диспетчерской
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  selector: {matchLabels: {app: estop}}
+  template:
+    metadata: {labels: {app: estop}}
+    spec:
+      priorityClassName: safety-critical
+      nodeSelector: {pool: control}              # отдельный пул узлов без отчётности
+      topologySpreadConstraints:                 # два помещения диспетчерской (зоны)
+      - {maxSkew: 1, topologyKey: topology.kubernetes.io/zone, whenUnsatisfiable: DoNotSchedule,
+         labelSelector: {matchLabels: {app: estop}}}
+      containers:
+      - name: estop
+        image: registry.local/estop:1.4.2
+        env:
+        - {name: PATTERN, value: "on"}
+        - {name: EMERGENCY_TIMEOUT_S, value: "0.5"}
+        - {name: NORMAL_LIMIT, value: "8"}
+        - {name: EMERGENCY_LIMIT, value: "4"}
+        readinessProbe: {httpGet: {path: /health, port: 8080}, periodSeconds: 2, failureThreshold: 2}
+        livenessProbe: {httpGet: {path: /health, port: 8080}, periodSeconds: 5, failureThreshold: 3}
+        resources:                               # Guaranteed QoS: requests = limits
+          requests: {cpu: 500m, memory: 256Mi}
+          limits: {cpu: 500m, memory: 256Mi}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: estop-pdb}
+spec:
+  minAvailable: 3
+  selector: {matchLabels: {app: estop}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: reports, labels: {app: reports}}
+spec:
+  replicas: 2
+  selector: {matchLabels: {app: reports}}
+  template:
+    metadata: {labels: {app: reports}}
+    spec:
+      priorityClassName: best-effort-reports
+      nodeSelector: {pool: analytics}            # отчётность — на других узлах
+      containers:
+      - name: reports
+        image: registry.local/reports:2.0.0
+        readinessProbe: {httpGet: {path: /health, port: 8080}, periodSeconds: 5}
+        livenessProbe: {httpGet: {path: /health, port: 8080}, periodSeconds: 10}
+        resources:
+          requests: {cpu: 250m, memory: 512Mi}
+          limits: {cpu: "1", memory: 1Gi}        # жёсткий потолок памяти — против R1
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: reports-hpa}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: reports}
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource: {name: cpu, target: {type: Utilization, averageUtilization: 70}}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: analytics-quota, namespace: default}
+spec:
+  hard: {limits.memory: 6Gi}
+  scopeSelector:
+    matchExpressions:
+    - {operator: In, scopeName: PriorityClass, values: [best-effort-reports]}
